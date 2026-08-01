@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ココフォリア駒作成ツール</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <div>
+        <h1>ココフォリア駒作成ツール</h1>
+        <p>フォームに入力して右下のボタンを押すと、クリップボードにJSONがコピーされます。</p>
+      </div>
+      <button type="button" id="btn-clear" class="btn-clear">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        クリア
+      </button>
+    </header>
+
+    <form id="char-form" class="form-layout two-columns">
+      
+      <!-- 左カラム：基本情報・詳細情報 -->
+      <div class="column left-column">
+        <section class="form-section">
+          <div class="basic-info-grid">
+            <div class="input-group">
+              <label for="name">名前</label>
+              <input type="text" id="name" name="name" placeholder="キャラクター名">
+            </div>
+            <div class="input-group">
+              <label for="initiative">イニシアチブ</label>
+              <input type="number" id="initiative" name="initiative" value="0">
+            </div>
+          </div>
+
+          <div class="two-col-grid compact-mb">
+            <div class="input-group">
+              <label for="color">カラー</label>
+              <div class="color-picker-wrap">
+                <input type="color" id="color" name="color" value="#888888">
+                <input type="text" id="color-hex-input" value="#888888" maxlength="7">
+              </div>
+            </div>
+            <div class="input-group">
+              <label for="externalUrl">参照URL</label>
+              <input type="url" id="externalUrl" name="externalUrl" placeholder="https://example.com">
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section flex-grow">
+          <div class="input-group full-width compact-mb">
+            <label for="memo">メモ</label>
+            <textarea id="memo" name="memo" rows="4" placeholder="キャラクターのメモや設定..."></textarea>
+          </div>
+          <div class="input-group full-width">
+            <label for="commands">チャットパレット</label>
+            <textarea id="commands" name="commands" rows="12" placeholder="1d100<=50 【回避】..."></textarea>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右カラム：ステータス・パラメータ・送信 -->
+      <div class="column right-column">
+        <section class="form-section">
+          <div class="section-header">
+            <h2 class="section-title">ステータス</h2>
+            <button type="button" id="btn-add-status" class="btn-ghost">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              追加
+            </button>
+          </div>
+          <div id="status-list" class="dynamic-list"></div>
+        </section>
+
+        <section class="form-section">
+          <div class="section-header">
+            <h2 class="section-title">パラメータ</h2>
+            <button type="button" id="btn-add-param" class="btn-ghost">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              追加
+            </button>
+          </div>
+          <div id="params-list" class="dynamic-list"></div>
+        </section>
+
+        <div class="mt-auto">
+          <div class="switch-group">
+            <label class="switch-label">
+              <span class="switch-text">発言を非公開</span>
+              <div class="switch">
+                <input type="checkbox" id="secret" name="secret">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="switch-label">
+              <span class="switch-text">盤面キャラクターを非表示</span>
+              <div class="switch">
+                <input type="checkbox" id="invisible" name="invisible">
+                <span class="slider"></span>
+              </div>
+            </label>
+            <label class="switch-label">
+              <span class="switch-text">ステータスを非公開</span>
+              <div class="switch">
+                <input type="checkbox" id="hideStatus" name="hideStatus">
+                <span class="slider"></span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </form>
+  </main>
+
+  <!-- フローティングアクションボタン (FAB) -->
+  <div class="fab-container">
+    <div id="toast-message" class="toast">クリップボードにコピーしました！</div>
+    <button type="button" id="btn-create" class="fab-button">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+      <span>駒を作成してコピー</span>
+    </button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
