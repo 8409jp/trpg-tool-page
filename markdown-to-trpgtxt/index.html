@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Md2Txt</title>
+  <meta name="description" content="Markdownファイルを視認しやすいテキスト形式（TRPG向け）に変換するツール。変換ルールを自由にカスタマイズできます。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== HEADER ========== -->
+  <header class="header">
+    <div class="header-inner">
+      <h1 class="site-title">Markdown → TXT</h1>
+      <nav class="header-nav" aria-label="メインアクション">
+        <button id="btn-settings" class="btn btn-ghost">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          設定
+        </button>
+        <button id="btn-clear" class="btn btn-ghost" disabled>クリア</button>
+        <button id="btn-download" class="btn btn-primary" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          ダウンロード
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main" id="main">
+
+    <!-- Upload section -->
+    <section class="upload-section" id="upload-section">
+      <div
+        id="drop-zone"
+        class="drop-zone"
+        role="button"
+        tabindex="0"
+        aria-label="Markdownファイルを選択またはドロップ"
+      >
+        <div class="drop-zone-content">
+          <div class="drop-icon" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <p class="drop-primary">クリックまたはドラッグ＆ドロップ</p>
+          <p class="drop-secondary">.md / .txt ファイル対応</p>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept=".md,.txt" hidden aria-label="ファイルを選択">
+
+      <!-- File info bar (shown after file is loaded) -->
+      <div id="file-info" class="file-info hidden">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span id="file-name" class="file-info-name"></span>
+        <button id="btn-change-file" class="btn btn-ghost btn-sm">変更</button>
+      </div>
+    </section>
+
+    <!-- Preview section (2-pane) -->
+    <section class="preview-section">
+      <!-- Left pane: original Markdown -->
+      <div class="pane">
+        <div class="pane-header">
+          <span class="pane-label">元の Markdown</span>
+        </div>
+        <div id="preview-source" class="pane-body" role="region" aria-label="元のMarkdown">
+          <p class="preview-empty" id="preview-source-empty">ファイルをアップロードすると元のMarkdownが表示されます</p>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="pane-divider" aria-hidden="true"></div>
+
+      <!-- Right pane: converted text -->
+      <div class="pane">
+        <div class="pane-header">
+          <span class="pane-label">変換結果</span>
+        </div>
+        <div id="preview" class="pane-body" role="region" aria-label="変換結果" aria-live="polite">
+          <p class="preview-empty" id="preview-empty">ファイルをアップロードすると変換結果が表示されます</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== SETTINGS MODAL ========== -->
+  <div
+    id="modal"
+    class="modal-overlay hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+  >
+    <div class="modal-box">
+
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">変換設定</h2>
+        <button id="modal-close" class="modal-close-btn" aria-label="設定を閉じる">✕</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Global settings -->
+        <section class="settings-group">
+          <h3 class="settings-group-title">グローバル設定</h3>
+          <div class="settings-grid">
+            <label class="setting-label" for="indent-unit">インデント幅（文字数）</label>
+            <input type="number" id="indent-unit" class="setting-input" min="1" max="8" value="2">
+
+            <label class="setting-label" for="indent-char">インデント文字</label>
+            <select id="indent-char" class="setting-select">
+              <option value="half">半角スペース</option>
+              <option value="full">全角スペース</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Conversion rules -->
+        <section class="settings-group">
+          <h3 class="settings-group-title">変換ルール</h3>
+          <div class="settings-note" aria-label="プレースホルダーの説明">
+            <p><code>{text}</code> … 変換元の内容（行ルール・インラインルール）</p>
+            <p><code>{content}</code> … ブロック全体の内容（ブロックルール・引用・コードブロック）</p>
+            <p><code>{num}</code> … 番号付きリストの番号</p>
+            <p>出力テンプレートの改行はそのまま改行として出力されます</p>
+          </div>
+          <div id="rules-list" class="rules-list" role="list"></div>
+          <button id="btn-add-rule" class="btn btn-ghost btn-sm">＋ ルールを追加</button>
+        </section>
+
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-reset-settings" class="btn btn-danger-ghost btn-sm">デフォルトに戻す</button>
+        <div class="modal-footer-actions">
+          <button id="btn-cancel-settings" class="btn btn-ghost">キャンセル</button>
+          <button id="btn-save-settings" class="btn btn-primary">保存</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
