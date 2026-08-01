@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRPG Tools</title>
+  <style>
+    :root {
+      --bg-color: #f9fafb;
+      --card-bg: #ffffff;
+      --text-main: #111827;
+      --primary: #0059b3;
+      --border: #e5e7eb;
+    }
+    body { 
+      font-family: "Meiryo", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background: var(--bg-color); 
+      color: var(--text-main); 
+      padding: 2rem 1rem; 
+      max-width: 900px; 
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    h1 { 
+      color: var(--primary); 
+      margin-bottom: 0.5rem;
+    }
+    p.desc {
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+    .tool-list { 
+      display: grid; 
+      gap: 1.5rem; 
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+      padding: 0; 
+      list-style: none; 
+    }
+    .tool-card { 
+      background: var(--card-bg); 
+      padding: 1.5rem; 
+      border-radius: 8px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+      border: 1px solid var(--border); 
+      transition: transform 0.2s, box-shadow 0.2s; 
+      display: flex;
+      flex-direction: column;
+    }
+    .tool-card:hover { 
+      transform: translateY(-3px); 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+      border-color: #cbd5e1;
+    }
+    .tool-card a { 
+      text-decoration: none; 
+      color: var(--primary); 
+      font-weight: 700; 
+      font-size: 1.1rem; 
+      margin-bottom: 0.5rem;
+    }
+    .tool-card a::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
+    .tool-card {
+      position: relative;
+    }
+    .tool-dir { 
+      font-size: 0.85rem; 
+      color: #9ca3af; 
+      font-family: monospace;
+      margin-top: auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TRPG Tools</h1>
+    <p class="desc">自作TRPGツールのインデックスページ</p>
+  </header>
+  <ul class="tool-list">
+    
+      <li class="tool-card">
+        <a href="ccfolia-chara-maker/">ココフォリア駒作成ツール</a>
+        <div class="tool-dir">/ccfolia-chara-maker</div>
+      </li>
+    
+      <li class="tool-card">
+        <a href="markdown-to-trpgtxt/">Md2Txt</a>
+        <div class="tool-dir">/markdown-to-trpgtxt</div>
+      </li>
+    
+  </ul>
+</body>
+</html>
