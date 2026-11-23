@@ -29,10 +29,38 @@
   <!-- ========== HEADER ========== -->
   <header class="app-header">
     <div class="header-left">
-      <h1 class="site-title">
-        <span class="title-badge">Md2Pdf</span>
-        <span class="title-sub">Markdown → PDF</span>
-      </h1>
+      <div class="tool-switcher" id="tool-switcher">
+        <button type="button" id="btn-tool-switcher" class="site-title-btn" aria-haspopup="menu" aria-expanded="false" title="別のMd2ツールへ切り替え">
+          <span class="title-badge">Md2Pdf</span>
+          <span class="title-sub">Markdown → PDF</span>
+          <svg class="switcher-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="tool-switcher-menu" class="switcher-menu hidden" role="menu" aria-label="ツール切り替え">
+          <div class="switcher-group-label">Markdown 変換ツール</div>
+          <a class="switcher-item" href="../markdown-to-html/index.html" role="menuitem" data-handoff-link>
+            <span class="switcher-item-badge">Md2Html</span>
+            <span class="switcher-item-meta"><strong>HTML 変換</strong><small>目次ツリー・ダーク切替付き単一HTML</small></span>
+          </a>
+          <a class="switcher-item is-current" href="../markdown-to-pdf/index.html" role="menuitem" aria-current="page">
+            <span class="switcher-item-badge">Md2Pdf</span>
+            <span class="switcher-item-meta"><strong>PDF 変換</strong><small>表紙・目次・改ページ制御・しおり</small></span>
+            <span class="switcher-check" aria-hidden="true">✓</span>
+          </a>
+          <a class="switcher-item" href="../markdown-to-trpgtxt/index.html" role="menuitem" data-handoff-link>
+            <span class="switcher-item-badge">Md2Txt</span>
+            <span class="switcher-item-meta"><strong>TXT 変換</strong><small>TRPG向け装飾テキスト形式</small></span>
+          </a>
+          <div class="switcher-divider"></div>
+          <label class="switcher-handoff">
+            <input type="checkbox" id="chk-handoff-md" checked>
+            <span>入力中のMarkdownを引き継ぐ</span>
+          </label>
+          <div class="switcher-divider"></div>
+          <a class="switcher-item switcher-item-home" href="../index.html" role="menuitem">
+            <span>← ツール一覧へ戻る</span>
+          </a>
+        </div>
+      </div>
       <div class="pane-toggles" role="group" aria-label="ペイン表示切り替え">
         <button type="button" id="btn-toggle-editor" class="btn btn-ghost btn-sm is-active" aria-pressed="true" title="入力ペインの表示切替">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>

@@ -1297,7 +1297,77 @@ if (typeof document !== 'undefined') (function initBrowserApp() {
     showToast('設定をデフォルトに戻しました');
   });
 
+  // ── Tool Switcher & Markdown Handoff ───────────────────────
+  const HANDOFF_KEY = 'md2_handoff_payload_v1';
+  const HANDOFF_PREF_KEY = 'md2_handoff_enabled_v1';
+
+  function setupToolSwitcher() {
+    const switcher = $('tool-switcher');
+    const btn = $('btn-tool-switcher');
+    const menu = $('tool-switcher-menu');
+    const chkHandoff = $('chk-handoff-md');
+    if (!switcher || !btn || !menu) return;
+
+    if (chkHandoff) {
+      try {
+        const pref = localStorage.getItem(HANDOFF_PREF_KEY);
+        if (pref !== null) chkHandoff.checked = pref === 'true';
+      } catch (e) {}
+      chkHandoff.addEventListener('change', () => {
+        try { localStorage.setItem(HANDOFF_PREF_KEY, String(chkHandoff.checked)); } catch (e) {}
+      });
+    }
+
+    function setOpen(open) {
+      menu.classList.toggle('hidden', !open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setOpen(menu.classList.contains('hidden'));
+    });
+    document.addEventListener('click', (e) => {
+      if (!switcher.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    });
+
+    menu.querySelectorAll('a[data-handoff-link]').forEach((link) => {
+      link.addEventListener('click', () => {
+        if (!chkHandoff || chkHandoff.checked) {
+          try {
+            localStorage.setItem(HANDOFF_KEY, JSON.stringify({
+              markdown: currentContent,
+              fileName: loadedFileBaseName,
+              ts: Date.now(),
+            }));
+          } catch (e) {}
+        }
+      });
+    });
+  }
+
+  function consumeHandoffIfAny() {
+    try {
+      const raw = localStorage.getItem(HANDOFF_KEY);
+      if (!raw) return false;
+      localStorage.removeItem(HANDOFF_KEY);
+      const data = JSON.parse(raw);
+      if (data && typeof data.markdown === 'string' && (Date.now() - (data.ts || 0)) < 30000) {
+        currentContent = data.markdown;
+        if (data.fileName) loadedFileBaseName = data.fileName;
+        saveMarkdown(currentContent);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   // ── Initialize ─────────────────────────────────────────────
+  setupToolSwitcher();
+  const receivedHandoff = consumeHandoffIfAny();
   buildPresetCards();
   mdInput.value = currentContent;
 
@@ -1309,4 +1379,5 @@ if (typeof document !== 'undefined') (function initBrowserApp() {
 
   syncUiFromSettings();
   runConvert();
+  if (receivedHandoff) showToast('前のツールからMarkdownを引き継ぎました');
 })();
