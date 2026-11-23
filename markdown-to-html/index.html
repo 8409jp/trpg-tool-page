@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Md2Html</title>
+  <meta name="description" content="Markdownテキスト（Obsidianコールアウト対応）を目次ツリー・ダークモード切替・背景テクスチャ付きの単一HTMLファイルに変換するツール。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== DRAG & DROP OVERLAY ========== -->
+  <div id="global-drop-overlay" class="global-drop-overlay hidden" aria-hidden="true">
+    <div class="global-drop-box">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      <p class="global-drop-title">ここに .md / .txt ファイルをドロップ</p>
+      <p class="global-drop-sub">エディタに読み込んで即座にプレビューします</p>
+    </div>
+  </div>
+
+  <!-- ========== HEADER ========== -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="site-title">
+        <span class="title-badge">Md2Html</span>
+        <span class="title-sub">Markdown → HTML</span>
+      </h1>
+      <div class="pane-toggles" role="group" aria-label="ペイン表示切り替え">
+        <button type="button" id="btn-toggle-editor" class="btn btn-ghost btn-sm is-active" aria-pressed="true" title="入力ペインの表示切替">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+          <span>入力</span>
+        </button>
+        <button type="button" id="btn-toggle-settings" class="btn btn-ghost btn-sm is-active" aria-pressed="true" title="デザイン設定パネルの表示切替">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>デザイン設定</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="header-actions" aria-label="メインアクション">
+      <button type="button" id="btn-load-file" class="btn btn-ghost btn-sm" title=".md または .txt ファイルを読み込む">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="hide-xs">.md 読込</span>
+      </button>
+      <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden>
+      <button type="button" id="btn-load-sample" class="btn btn-ghost btn-sm" title="サンプルMarkdownを読み込む">サンプル</button>
+      <button type="button" id="btn-open-tab" class="btn btn-ghost btn-sm" title="生成されたHTMLを別タブで開く">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span class="hide-sm">別タブ確認</span>
+      </button>
+      <button type="button" id="btn-download" class="btn btn-primary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>HTML ダウンロード</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- ========== WORKSPACE (3-PANE) ========== -->
+  <div id="workspace" class="workspace">
+
+    <!-- 1. LEFT PANE: MARKDOWN EDITOR -->
+    <section id="editor-pane" class="editor-pane" aria-label="Markdown入力">
+      <div class="pane-bar">
+        <div class="pane-bar-left">
+          <span class="pane-title">Markdown 入力</span>
+          <span id="loaded-file-badge" class="file-badge hidden"></span>
+        </div>
+        <div class="pane-bar-right">
+          <button type="button" id="btn-clear-editor" class="text-btn" title="入力をクリア">クリア</button>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <textarea
+          id="md-input"
+          class="md-textarea"
+          spellcheck="false"
+          placeholder="# タイトル&#10;&#10;ここにMarkdownを入力するか、.mdファイルをドラッグ＆ドロップしてください。&#10;&#10;> [!note] Obsidian コールアウト&#10;> > [!tip]+ 折りたたみにも対応しています"
+          aria-label="Markdownテキスト入力欄"
+        ></textarea>
+      </div>
+
+      <div class="editor-footer">
+        <span id="stat-chars">0 文字</span>
+        <span class="stat-sep">·</span>
+        <span id="stat-headings">見出し 0</span>
+        <span class="stat-sep">·</span>
+        <span class="stat-hint">.md ドラッグ＆ドロップ対応</span>
+      </div>
+    </section>
+
+    <!-- 2. CENTER PANE: LIVE STANDALONE PREVIEW -->
+    <section id="preview-pane" class="preview-pane" aria-label="リアルタイムプレビュー">
+      <div class="pane-bar preview-bar">
+        <div class="pane-bar-left">
+          <span class="pane-title">プレビュー</span>
+          <span class="preview-pill">出力HTML完全一致</span>
+        </div>
+
+        <div class="viewport-switch" role="group" aria-label="プレビュー幅切り替え">
+          <button type="button" class="vp-btn is-active" data-vp="desktop" title="デスクトップ幅 (100%)">PC</button>
+          <button type="button" class="vp-btn" data-vp="tablet" title="タブレット幅 (768px)">Tab</button>
+          <button type="button" class="vp-btn" data-vp="mobile" title="モバイル幅 (390px)">SP</button>
+        </div>
+
+        <div class="pane-bar-right">
+          <div class="theme-quick-switch" role="group" aria-label="プレビューのテーマ切り替え">
+            <button type="button" id="btn-preview-light" class="vp-btn is-active" title="ライトモードで確認">☀ ライト</button>
+            <button type="button" id="btn-preview-dark" class="vp-btn" title="ダークモードで確認">☾ ダーク</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="preview-stage" class="preview-stage" data-vp="desktop">
+        <iframe
+          id="preview-frame"
+          class="preview-frame"
+          title="HTMLプレビュー"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        ></iframe>
+      </div>
+    </section>
+
+    <!-- 3. RIGHT PANE: DESIGN SETTINGS PANEL -->
+    <aside id="settings-pane" class="settings-pane" aria-label="デザイン・出力設定">
+      <div class="settings-tabs" role="tablist" aria-label="設定カテゴリ">
+        <button type="button" class="tab-btn is-active" role="tab" aria-selected="true" data-tab="presets">プリセット</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="colors">配色</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="styles">記法</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="background">背景</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="output">出力</button>
+      </div>
+
+      <div class="settings-body">
+
+        <!-- TAB 1: PRESETS -->
+        <div class="tab-panel is-active" data-panel="presets" role="tabpanel">
+          <p class="panel-intro">ベースとなる世界観を選ぶと、配色・フォント・見出し・テクスチャが一括適用されます。その後、各タブで自由に微調整できます。</p>
+          <div id="preset-grid" class="preset-grid"></div>
+        </div>
+
+        <!-- TAB 2: COLORS (LIGHT / DARK) -->
+        <div class="tab-panel" data-panel="colors" role="tabpanel">
+          <div class="mode-segment" role="group" aria-label="編集するモードを選択">
+            <button type="button" class="seg-btn is-active" data-color-mode="light">☀ ライトモードの色</button>
+            <button type="button" class="seg-btn" data-color-mode="dark">☾ ダークモードの色</button>
+          </div>
+          <p class="panel-note">モードを切り替えるとプレビューも連動して切り替わります。</p>
+
+          <div class="setting-block">
+            <div class="color-list">
+              <div class="color-row">
+                <label for="col-pageBg">ページ背景色</label>
+                <div class="color-control">
+                  <input type="color" id="col-pageBg" data-color-key="pageBg">
+                  <input type="text" class="hex-input" id="hex-pageBg" data-color-key="pageBg" maxlength="7" aria-label="ページ背景色 HEX">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-surfaceBg">本文カード背景</label>
+                <div class="color-control">
+                  <input type="color" id="col-surfaceBg" data-color-key="surfaceBg">
+                  <input type="text" class="hex-input" id="hex-surfaceBg" data-color-key="surfaceBg" maxlength="7" aria-label="本文カード背景 HEX">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-text">本文文字色</label>
+                <div class="color-control">
+                  <input type="color" id="col-text" data-color-key="text">
+                  <input type="text" class="hex-input" id="hex-text" data-color-key="text" maxlength="7" aria-label="本文文字色 HEX">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-heading">見出し文字色</label>
+                <div class="color-control">
+                  <input type="color" id="col-heading" data-color-key="heading">
+                  <input type="text" class="hex-input" id="hex-heading" data-color-key="heading" maxlength="7" aria-label="見出し文字色 HEX">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-accent">アクセント色</label>
+                <div class="color-control">
+                  <input type="color" id="col-accent" data-color-key="accent">
+                  <input type="text" class="hex-input" id="hex-accent" data-color-key="accent" maxlength="7" aria-label="アクセント色 HEX">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-link">リンク色</label>
+                <div class="color-control">
+                  <input type="color" id="col-link" data-color-key="link">
+                  <input type="text" class="hex-input" id="hex-link" data-color-key="link" maxlength="7" aria-label="リンク色 HEX">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: MARKDOWN STYLES -->
+        <div class="tab-panel" data-panel="styles" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">タイポグラフィ</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label for="sel-body-font">本文フォント</label>
+                <select id="sel-body-font">
+                  <option value="gothic">ゴシック体 (Noto Sans)</option>
+                  <option value="serif">明朝体 (しっぽり明朝)</option>
+                  <option value="rounded">丸ゴシック (M PLUS)</option>
+                  <option value="mono">等幅 (JetBrains Mono)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-heading-font">見出しフォント</label>
+                <select id="sel-heading-font">
+                  <option value="inherit">本文と同じ</option>
+                  <option value="gothic">ゴシック体</option>
+                  <option value="serif">明朝体</option>
+                  <option value="mono">等幅・テック系</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-font-size">文字サイズ</label>
+                <select id="sel-font-size">
+                  <option value="sm">小さめ (14.5px)</option>
+                  <option value="md">標準 (16px)</option>
+                  <option value="lg">大きめ (17.5px)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-content-width">本文の最大幅</label>
+                <select id="sel-content-width">
+                  <option value="narrow">狭め (680px)</option>
+                  <option value="normal">標準 (820px)</option>
+                  <option value="wide">広め (980px)</option>
+                </select>
+              </div>
+            </div>
+            <div class="range-field">
+              <div class="range-head">
+                <label for="rng-line-height">行間</label>
+                <span id="val-line-height" class="range-val">1.8</span>
+              </div>
+              <input type="range" id="rng-line-height" min="1.5" max="2.2" step="0.05" value="1.8">
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">見出しデザイン</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-h1-style">H1 見出し</label>
+                <select id="sel-h1-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">アクセント下線</option>
+                  <option value="left-bar">左バー＋帯グラデ</option>
+                  <option value="box">ボックス囲み</option>
+                  <option value="double-line">上下二重線（章扉）</option>
+                  <option value="center-ornament">中央装飾（◆）</option>
+                  <option value="cyber">サイバー発光</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-h2-style">H2 見出し</label>
+                <select id="sel-h2-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">アクセント下線</option>
+                  <option value="left-bar">左アクセントバー</option>
+                  <option value="box">背景帯＋左バー</option>
+                  <option value="double-line">二重下線</option>
+                  <option value="cyber">サイバー (//)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-h3-style">H3 見出し</label>
+                <select id="sel-h3-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">破線アンダーライン</option>
+                  <option value="left-bar">左細バー</option>
+                  <option value="dot">菱形マーカー (◆)</option>
+                  <option value="cyber">サイバー (&gt;)</option>
+                </select>
+              </div>
+              <div class="range-field mt-8">
+                <div class="range-head">
+                  <label for="rng-heading-space">見出しの上余白</label>
+                  <span id="val-heading-space" class="range-val">1.0x</span>
+                </div>
+                <input type="range" id="rng-heading-space" min="0.5" max="2.0" step="0.1" value="1.0">
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">Obsidian コールアウト</h3>
+            <div class="field-inline">
+              <label for="sel-callout-style">枠スタイル</label>
+              <select id="sel-callout-style">
+                <option value="obsidian">Obsidian 標準</option>
+                <option value="left-border">左太線クラシック</option>
+                <option value="outline">枠線アウトライン</option>
+                <option value="filled">ヘッダー帯塗りつぶし</option>
+              </select>
+            </div>
+
+            <details class="callout-colors-accordion" open>
+              <summary>タイプ別の色カスタマイズ（13系統）</summary>
+              <div id="callout-colors-grid" class="callout-colors-grid"></div>
+              <button type="button" id="btn-reset-callout-colors" class="btn btn-ghost btn-xs mt-8">コールアウト色を標準に戻す</button>
+            </details>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">その他の記法</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-blockquote-style">通常引用 (&gt;)</label>
+                <select id="sel-blockquote-style">
+                  <option value="border">左ボーダー</option>
+                  <option value="quote-icon">引用符アイコン</option>
+                  <option value="card">カード囲み</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-bold-style">太字 (**text**)</label>
+                <select id="sel-bold-style">
+                  <option value="normal">標準太字</option>
+                  <option value="accent">アクセント色</option>
+                  <option value="marker">蛍光マーカー下線</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-hr-style">水平線 (---)</label>
+                <select id="sel-hr-style">
+                  <option value="solid">実線</option>
+                  <option value="dashed">破線</option>
+                  <option value="ornament">オーナメント (✦)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-table-style">テーブル</label>
+                <select id="sel-table-style">
+                  <option value="clean">シンプル罫線</option>
+                  <option value="striped">ストライプ行</option>
+                  <option value="bordered">フル枠線</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-code-wrap">コードブロック</label>
+                <select id="sel-code-wrap">
+                  <option value="wrap">折り返す（スクロールなし）</option>
+                  <option value="scroll">横スクロール</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: BACKGROUND TEXTURE -->
+        <div class="tab-panel" data-panel="background" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">背景テクスチャ</h3>
+            <p class="panel-note">すべてCSS/インラインSVGで生成されるため、外部画像なしで単一HTMLとして配布できます。</p>
+            <div id="texture-grid" class="texture-grid">
+              <button type="button" class="texture-card" data-texture="none">
+                <span class="tex-thumb tex-thumb-none"></span>
+                <span class="tex-label">無地</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="paper">
+                <span class="tex-thumb tex-thumb-paper"></span>
+                <span class="tex-label">紙テクスチャ風</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="cyberpunk">
+                <span class="tex-thumb tex-thumb-cyber"></span>
+                <span class="tex-label">サイバーパンク</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="dot-grid">
+                <span class="tex-thumb tex-thumb-dot"></span>
+                <span class="tex-label">ドット方眼</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="lined">
+                <span class="tex-thumb tex-thumb-lined"></span>
+                <span class="tex-label">罫線ノート</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <div class="range-field">
+              <div class="range-head">
+                <label for="rng-tex-intensity">テクスチャの強さ</label>
+                <span id="val-tex-intensity" class="range-val">55%</span>
+              </div>
+              <input type="range" id="rng-tex-intensity" min="0" max="100" step="5" value="55">
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">本文エリアのスタイル</h3>
+            <div class="radio-cards">
+              <label class="radio-card">
+                <input type="radio" name="cardStyle" value="elevated">
+                <span class="radio-card-body">
+                  <strong>カード面（推奨）</strong>
+                  <small>テクスチャの上に本文カードを浮かせて視認性を確保</small>
+                </span>
+              </label>
+              <label class="radio-card">
+                <input type="radio" name="cardStyle" value="flat">
+                <span class="radio-card-body">
+                  <strong>フラット一体型</strong>
+                  <small>ページ全面のテクスチャ上に直接テキストを配置</small>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: OUTPUT & OPTIONS -->
+        <div class="tab-panel" data-panel="output" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">ファイル情報</h3>
+            <div class="field-stack">
+              <div class="field">
+                <label for="inp-doc-title">HTML タイトル（空欄時は自動抽出）</label>
+                <input type="text" id="inp-doc-title" placeholder="フロントマター title または最初の H1">
+              </div>
+              <div class="field">
+                <label for="inp-file-name">出力ファイル名（.html 自動付与）</label>
+                <input type="text" id="inp-file-name" placeholder="例: scenario-handout">
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">出力HTMLの初期動作</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-initial-theme">初期テーマ</label>
+                <select id="sel-initial-theme">
+                  <option value="auto">OS設定に追従</option>
+                  <option value="light">常にライト</option>
+                  <option value="dark">常にダーク</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-initial-sidebar">左ナビ初期状態 (PC)</label>
+                <select id="sel-initial-sidebar">
+                  <option value="open">開いた状態</option>
+                  <option value="closed">閉じた状態</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">Markdown / Obsidian オプション</h3>
+            <div class="toggle-list">
+              <label class="toggle-row">
+                <span>単一改行を改行（&lt;br&gt;）に反映</span>
+                <input type="checkbox" id="chk-breaks">
+              </label>
+              <label class="toggle-row">
+                <span>Obsidianコメント (%%...%%) を除外</span>
+                <input type="checkbox" id="chk-strip-comments">
+              </label>
+              <label class="toggle-row">
+                <span>先頭のYAMLフロントマターを除外</span>
+                <input type="checkbox" id="chk-strip-frontmatter">
+              </label>
+              <label class="toggle-row">
+                <span>Google Fonts 読込を含める</span>
+                <input type="checkbox" id="chk-webfonts">
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">設定のバックアップ・初期化</h3>
+            <div class="btn-row">
+              <button type="button" id="btn-export-config" class="btn btn-ghost btn-xs">JSON 書き出し</button>
+              <button type="button" id="btn-import-config" class="btn btn-ghost btn-xs">JSON 読み込み</button>
+              <input type="file" id="config-file-input" accept=".json" hidden>
+            </div>
+            <button type="button" id="btn-reset-all" class="btn btn-danger-ghost btn-xs mt-8 full-width">すべての設定をデフォルトに戻す</button>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ========== TOAST ========== -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/markdown-it.min.js"></script>
+  <script src="presets.js"></script>
+  <script src="parser.js"></script>
+  <script src="exporter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
