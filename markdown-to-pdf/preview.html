@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Md2Pdf Preview</title>
+  <style id="preview-chrome-style">
+    /* Screen-only paper stage styling (stripped completely during print / PDF save) */
+    @media screen {
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background: #d5d9e2;
+      }
+      #paged-root {
+        padding: 24px 16px 64px;
+        transform-origin: top center;
+      }
+      .pagedjs_pages {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 22px;
+      }
+      .pagedjs_page {
+        box-shadow: 0 6px 24px rgba(15, 23, 42, 0.22), 0 1px 4px rgba(15, 23, 42, 0.12);
+        border-radius: 2px;
+        position: relative;
+      }
+      .pagedjs_page::before {
+        content: 'P.' attr(data-page-number);
+        position: absolute;
+        top: 6px;
+        right: -46px;
+        font-family: 'Noto Sans Mono', Consolas, monospace;
+        font-size: 11px;
+        font-weight: 600;
+        color: #4b5563;
+        background: rgba(255, 255, 255, 0.85);
+        padding: 2px 6px;
+        border-radius: 4px;
+        pointer-events: none;
+      }
+    }
+
+    @media print {
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+      }
+      #paged-root {
+        padding: 0 !important;
+        transform: none !important;
+        zoom: 1 !important;
+      }
+      .pagedjs_pages {
+        display: block !important;
+        gap: 0 !important;
+      }
+      .pagedjs_page {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+      }
+      .pagedjs_page::before {
+        display: none !important;
+      }
+    }
+  </style>
+  <style id="doc-visual-style"></style>
+  <script>
+    window.PagedConfig = { auto: false };
+  </script>
+  <script src="vendor/paged.polyfill.js"></script>
+</head>
+<body>
+  <div id="paged-root"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var activePreviewer = null;
+      var renderSerial = 0;
+      var currentFontsLink = null;
+      var currentFontsUrl = '';
+      var lastZoomVal = 'fit';
+      var rootEl = document.getElementById('paged-root');
+      var visualStyleEl = document.getElementById('doc-visual-style');
+
+      function postToParent(msg) {
+        if (window.parent && window.parent !== window) {
+          try { window.parent.postMessage(msg, '*'); } catch (e) {}
+        }
+      }
+
+      function yieldFrame() {
+        return new Promise(function (resolve) {
+          requestAnimationFrame(function () { setTimeout(resolve, 0); });
+        });
+      }
+
+      function ensureFonts(fontsUrl) {
+        if (!fontsUrl) {
+          if (currentFontsLink) {
+            currentFontsLink.remove();
+            currentFontsLink = null;
+            currentFontsUrl = '';
+          }
+          return Promise.resolve();
+        }
+        if (currentFontsUrl === fontsUrl) {
+          return (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        }
+        if (currentFontsLink) currentFontsLink.remove();
+        currentFontsUrl = fontsUrl;
+        return new Promise(function (resolve) {
+          var link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = fontsUrl;
+          var done = false;
+          function finish() {
+            if (done) return;
+            done = true;
+            if (document.fonts && document.fonts.ready) {
+              document.fonts.ready.then(resolve, resolve);
+            } else {
+              resolve();
+            }
+          }
+          link.onload = finish;
+          link.onerror = finish;
+          setTimeout(finish, 900);
+          document.head.appendChild(link);
+          currentFontsLink = link;
+        });
+      }
+
+      function cleanupPrevious() {
+        if (activePreviewer && activePreviewer.polisher) {
+          try { activePreviewer.polisher.destroy(); } catch (e) {}
+        }
+        document.querySelectorAll('style[data-pagedjs-inserted-styles]').forEach(function (el) {
+          el.remove();
+        });
+        rootEl.innerHTML = '';
+      }
+
+      function findPageNumberForElement(el) {
+        if (!el) return null;
+        var pageEl = el.closest('.pagedjs_page');
+        if (!pageEl) return null;
+        var num = parseInt(pageEl.getAttribute('data-page-number'), 10);
+        return isNaN(num) ? null : num;
+      }
+
+      // Smooth in-preview anchor navigation
+      rootEl.addEventListener('click', function (e) {
+        var link = e.target.closest('a[href^="#"]');
+        if (!link) return;
+        var id = (link.getAttribute('href') || '').slice(1);
+        if (!id) return;
+        var target = document.getElementById(id);
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+
+      function setPreviewZoom(zoomVal) {
+        lastZoomVal = zoomVal;
+        if (zoomVal === 'fit') {
+          var firstPage = rootEl.querySelector('.pagedjs_page');
+          if (firstPage) {
+            var avail = Math.max(240, window.innerWidth - 96);
+            var pageW = firstPage.offsetWidth || 794;
+            var scale = Math.min(1, avail / pageW);
+            rootEl.style.zoom = String(scale.toFixed(3));
+            return;
+          }
+          rootEl.style.zoom = '1';
+          return;
+        }
+        rootEl.style.zoom = String(Number(zoomVal) || 1);
+      }
+
+      function printPagedDocument() {
+        var prevZoom = rootEl.style.zoom;
+        rootEl.style.zoom = '1';
+        var restored = false;
+        function restore() {
+          if (restored) return;
+          restored = true;
+          rootEl.style.zoom = prevZoom || '';
+          setPreviewZoom(lastZoomVal);
+        }
+        window.addEventListener('afterprint', restore, { once: true });
+        setTimeout(function () {
+          window.focus();
+          window.print();
+          setTimeout(restore, 1000);
+        }, 40);
+      }
+
+      function applyVisualOnly(msg) {
+        if (msg.title) document.title = msg.title;
+        if (msg.visualCss !== undefined) {
+          visualStyleEl.textContent = msg.visualCss;
+        }
+        if (msg.rootAttrsObj) {
+          rootEl.querySelectorAll('.pdf-root').forEach(function (el) {
+            Object.keys(msg.rootAttrsObj).forEach(function (k) {
+              el.setAttribute(k, msg.rootAttrsObj[k]);
+            });
+          });
+        }
+      }
+
+      async function renderPagedDocument(payload) {
+        var serial = ++renderSerial;
+        var t0 = performance.now();
+        var estPages = Math.max(1, Number(payload.estimatedPages) || 4);
+
+        try {
+          document.title = payload.title || 'Md2Pdf Document';
+          postToParent({
+            type: 'md2pdf:progress',
+            serial: serial,
+            percent: 10,
+            phase: 'フォントとスタイルを準備中...',
+            currentPage: 0,
+            estimatedPages: estPages,
+          });
+
+          // Apply full visual CSS natively (skips heavy css-tree parsing in Paged.js!)
+          visualStyleEl.textContent = payload.visualCss || '';
+
+          await ensureFonts(payload.fontsUrl || '');
+          if (serial !== renderSerial) return;
+
+          postToParent({
+            type: 'md2pdf:progress',
+            serial: serial,
+            percent: 22,
+            phase: 'ページ設定を解析中...',
+            currentPage: 0,
+            estimatedPages: estPages,
+          });
+          await yieldFrame();
+          if (serial !== renderSerial) return;
+
+          cleanupPrevious();
+
+          var template = document.createElement('template');
+          template.innerHTML = payload.bodyHtml;
+          var fragment = template.content;
+
+          // Only feed minimal @page & pagination break CSS to Paged.js!
+          var cssSheet = {};
+          cssSheet[window.location.href] = payload.pagedCss || payload.css || '';
+
+          var previewer = new window.Paged.Previewer();
+          activePreviewer = previewer;
+
+          var builtPages = 0;
+          previewer.on('rendering', function () {
+            if (serial !== renderSerial) return;
+            postToParent({
+              type: 'md2pdf:progress',
+              serial: serial,
+              percent: 30,
+              phase: 'ページ組版を開始しています...',
+              currentPage: 0,
+              estimatedPages: estPages,
+            });
+          });
+
+          previewer.on('page', function () {
+            if (serial !== renderSerial) return;
+            builtPages++;
+            // Smooth asymptotic progress between 32% and 92% as each page completes
+            var ratio = builtPages / Math.max(estPages, builtPages + 1);
+            var pct = Math.min(92, Math.round(32 + ratio * 60));
+            postToParent({
+              type: 'md2pdf:progress',
+              serial: serial,
+              percent: pct,
+              phase: builtPages + ' ページ目を組版中...',
+              currentPage: builtPages,
+              estimatedPages: estPages,
+            });
+          });
+
+          var flow = await previewer.preview(fragment, [cssSheet], rootEl);
+          if (serial !== renderSerial) return;
+
+          postToParent({
+            type: 'md2pdf:progress',
+            serial: serial,
+            percent: 96,
+            phase: '目次番号・しおりを集計中...',
+            currentPage: builtPages,
+            estimatedPages: estPages,
+          });
+
+          // Measure exact 1-based page numbers for every heading, cover, and TOC
+          var headingPages = {};
+          var headings = rootEl.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]');
+          headings.forEach(function (h) {
+            var pNum = findPageNumberForElement(h);
+            if (pNum !== null) headingPages[h.id] = pNum;
+          });
+
+          var tocSpans = rootEl.querySelectorAll('.pdf-toc-pagenum[data-toc-target]');
+          tocSpans.forEach(function (sp) {
+            var tid = sp.getAttribute('data-toc-target');
+            if (tid && headingPages[tid] !== undefined) {
+              sp.textContent = String(headingPages[tid]);
+            }
+          });
+
+          var coverPage = findPageNumberForElement(document.getElementById('pdf-cover'));
+          var tocPage = findPageNumberForElement(document.getElementById('pdf-toc'));
+          var totalPages = (flow && flow.total) || rootEl.querySelectorAll('.pagedjs_page').length;
+
+          if (payload.zoom !== undefined) {
+            setPreviewZoom(payload.zoom);
+          }
+
+          var elapsedMs = Math.round(performance.now() - t0);
+          postToParent({
+            type: 'md2pdf:rendered',
+            serial: serial,
+            totalPages: totalPages,
+            headingPages: headingPages,
+            coverPage: coverPage,
+            tocPage: tocPage,
+            elapsedMs: elapsedMs,
+          });
+        } catch (err) {
+          console.error('Paged.js preview error:', err);
+          postToParent({
+            type: 'md2pdf:error',
+            serial: serial,
+            message: String((err && err.message) || err || '組版エラー'),
+          });
+        }
+      }
+
+      // Listen for commands from parent via postMessage (works on https://, http://, AND file://!)
+      window.addEventListener('message', function (e) {
+        var msg = e.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'md2pdf:ping') {
+          postToParent({ type: 'md2pdf:preview-ready' });
+        } else if (msg.type === 'md2pdf:render') {
+          renderPagedDocument(msg.payload);
+        } else if (msg.type === 'md2pdf:update-visual') {
+          applyVisualOnly(msg);
+        } else if (msg.type === 'md2pdf:zoom') {
+          setPreviewZoom(msg.zoom);
+        } else if (msg.type === 'md2pdf:print') {
+          printPagedDocument();
+        }
+      });
+
+      // Expose direct methods too as optional convenience
+      window.renderPagedDocument = renderPagedDocument;
+      window.setPreviewZoom = setPreviewZoom;
+      window.printPagedDocument = printPagedDocument;
+
+      // Announce readiness
+      if (document.readyState === 'complete') {
+        postToParent({ type: 'md2pdf:preview-ready' });
+      } else {
+        window.addEventListener('load', function () {
+          postToParent({ type: 'md2pdf:preview-ready' });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

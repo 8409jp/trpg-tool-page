@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Md2Pdf</title>
+  <meta name="description" content="Markdown（Obsidianコールアウト対応）を表紙・ページ番号付きクリック目次・改ページ制御・背景テクスチャ・PDFしおり付きの美しいPDFに変換するツール。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== DRAG & DROP OVERLAY ========== -->
+  <div id="global-drop-overlay" class="global-drop-overlay hidden" aria-hidden="true">
+    <div class="global-drop-box">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      <p class="global-drop-title">.md / .txt または .pdf ファイルをドロップ</p>
+      <p class="global-drop-sub">.md はエディタへ読み込み、.pdf は現在の見出しから「しおり」を自動埋め込みします</p>
+    </div>
+  </div>
+
+  <!-- ========== HEADER ========== -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="site-title">
+        <span class="title-badge">Md2Pdf</span>
+        <span class="title-sub">Markdown → PDF</span>
+      </h1>
+      <div class="pane-toggles" role="group" aria-label="ペイン表示切り替え">
+        <button type="button" id="btn-toggle-editor" class="btn btn-ghost btn-sm is-active" aria-pressed="true" title="入力ペインの表示切替">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+          <span>入力</span>
+        </button>
+        <button type="button" id="btn-toggle-settings" class="btn btn-ghost btn-sm is-active" aria-pressed="true" title="PDF設定パネルの表示切替">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>PDF設定</span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="header-actions" aria-label="メインアクション">
+      <button type="button" id="btn-load-file" class="btn btn-ghost btn-sm" title=".md または .txt ファイルを読み込む">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="hide-xs">.md 読込</span>
+      </button>
+      <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden>
+      <button type="button" id="btn-load-sample" class="btn btn-ghost btn-sm" title="サンプルMarkdownを読み込む">サンプル</button>
+      <button type="button" id="btn-open-outline-tab" class="btn btn-ghost btn-sm" title="保存したPDFに左しおり（アウトライン）を埋め込む">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+        <span class="hide-sm">しおり埋め込み</span>
+      </button>
+      <button type="button" id="btn-print-pdf" class="btn btn-primary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>PDF を保存 (印刷)</span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- ========== WORKSPACE (3-PANE) ========== -->
+  <div id="workspace" class="workspace">
+
+    <!-- 1. LEFT PANE: MARKDOWN EDITOR -->
+    <section id="editor-pane" class="editor-pane" aria-label="Markdown入力">
+      <div class="pane-bar">
+        <div class="pane-bar-left">
+          <span class="pane-title">Markdown 入力</span>
+          <span id="loaded-file-badge" class="file-badge hidden"></span>
+        </div>
+        <div class="pane-bar-right">
+          <button type="button" id="btn-insert-pagebreak" class="text-btn text-btn-accent" title="カーソル位置に手動改ページ (\pagebreak) を挿入">＋ 改ページ</button>
+          <button type="button" id="btn-clear-editor" class="text-btn" title="入力をクリア">クリア</button>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <textarea
+          id="md-input"
+          class="md-textarea"
+          spellcheck="false"
+          placeholder="# タイトル&#10;&#10;ここにMarkdownを入力するか、.mdファイルをドロップしてください。&#10;任意の位置で改ページしたい場合は \pagebreak と記述できます。"
+          aria-label="Markdownテキスト入力欄"
+        ></textarea>
+      </div>
+
+      <div class="editor-footer">
+        <span id="stat-chars">0 文字</span>
+        <span class="stat-sep">·</span>
+        <span id="stat-headings">見出し 0</span>
+        <span class="stat-hint">\pagebreak で手動改ページ</span>
+      </div>
+    </section>
+
+    <!-- 2. CENTER PANE: PAGED.JS LIVE PAGE PREVIEW -->
+    <section id="preview-pane" class="preview-pane" aria-label="ページ組版プレビュー">
+      <div class="pane-bar preview-bar">
+        <div class="pane-bar-left">
+          <span class="pane-title">ページプレビュー</span>
+          <span id="page-status-pill" class="preview-pill">組版中...</span>
+        </div>
+
+        <div class="viewport-switch" role="group" aria-label="プレビュー倍率">
+          <button type="button" class="vp-btn is-active" data-zoom="fit" title="画面幅に合わせる">自動</button>
+          <button type="button" class="vp-btn" data-zoom="0.75" title="75%表示">75%</button>
+          <button type="button" class="vp-btn" data-zoom="1" title="原寸100%表示">100%</button>
+        </div>
+
+        <div class="pane-bar-right">
+          <button type="button" id="btn-rerender" class="vp-btn vp-single" title="ページ組版を再計算">再組版</button>
+          <div class="theme-quick-switch" role="group" aria-label="カラーモード切替">
+            <button type="button" id="btn-preview-light" class="vp-btn is-active" title="ライト紙面">☀ ライト</button>
+            <button type="button" id="btn-preview-dark" class="vp-btn" title="ダーク紙面">☾ ダーク</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="print-tip-bar" class="print-tip-bar">
+        <span>PDF保存時は印刷設定で <strong>「余白：なし」「背景のグラフィック：ON」</strong> を推奨。保存後、右の <strong>「しおり」タブ</strong> にPDFをドロップすると左しおりが自動追加されます。</span>
+        <button type="button" id="btn-close-tip" class="tip-close" aria-label="ヒントを閉じる">✕</button>
+      </div>
+
+      <div class="preview-stage">
+        <div id="progress-bar-wrap" class="progress-bar-wrap hidden" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="ページ組版の進捗">
+          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+        <div id="render-spinner" class="render-spinner hidden" aria-live="polite">
+          <div class="spinner-head">
+            <span id="spinner-text">ページ組版中...</span>
+            <span id="spinner-pct" class="spinner-pct">0%</span>
+          </div>
+          <div class="spinner-track">
+            <div id="spinner-fill" class="spinner-fill"></div>
+          </div>
+        </div>
+        <iframe id="preview-frame" class="preview-frame" src="preview.html" title="PDFページプレビュー"></iframe>
+      </div>
+    </section>
+
+    <!-- 3. RIGHT PANE: PDF SETTINGS & OUTLINE EMBED PANEL -->
+    <aside id="settings-pane" class="settings-pane" aria-label="PDFデザイン・組版設定">
+      <div class="settings-tabs" role="tablist" aria-label="設定カテゴリ">
+        <button type="button" class="tab-btn is-active" role="tab" aria-selected="true" data-tab="page">ページ</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="cover">表紙・目次</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="design">デザイン</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="styles">記法</button>
+        <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="outline">しおり</button>
+      </div>
+
+      <div class="settings-body">
+
+        <!-- TAB 1: PAGE & PAGINATION -->
+        <div class="tab-panel is-active" data-panel="page" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">用紙・レイアウト</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-paper-size">用紙サイズ</label>
+                <select id="sel-paper-size">
+                  <option value="A4">A4 (210 × 297mm)</option>
+                  <option value="B5">B5 JIS (182 × 257mm)</option>
+                  <option value="A5">A5 冊子 (148 × 210mm)</option>
+                  <option value="Letter">Letter (216 × 279mm)</option>
+                  <option value="Wide169">電子横画面 (16:9)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-orientation">用紙の向き</label>
+                <select id="sel-orientation">
+                  <option value="portrait">縦向き</option>
+                  <option value="landscape">横向き</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-margin">ページ余白</label>
+                <select id="sel-margin">
+                  <option value="narrow">狭い (14mm)</option>
+                  <option value="normal">標準 (20mm)</option>
+                  <option value="wide">広い (25mm)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">改ページ制御（途切れ防止）</h3>
+            <p class="panel-note">見出しやコードブロックがページ境界で途中分断されるのを防ぎます。</p>
+            <div class="toggle-list">
+              <label class="toggle-row">
+                <span>H1（章）の前で自動改ページ</span>
+                <input type="checkbox" id="chk-break-h1">
+              </label>
+              <label class="toggle-row">
+                <span>H2（節）の前で自動改ページ</span>
+                <input type="checkbox" id="chk-break-h2">
+              </label>
+              <label class="toggle-row">
+                <span>見出しと直後の本文を離さない</span>
+                <input type="checkbox" id="chk-keep-heading">
+              </label>
+              <label class="toggle-row">
+                <span>コード・コールアウトの途中分割を防ぐ</span>
+                <input type="checkbox" id="chk-avoid-blocks">
+              </label>
+              <label class="toggle-row">
+                <span>段落の途中分割を避ける</span>
+                <input type="checkbox" id="chk-avoid-paras">
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">ヘッダー・フッター</h3>
+            <div class="toggle-list">
+              <label class="toggle-row">
+                <span>ページ番号（ノンブル）を表示</span>
+                <input type="checkbox" id="chk-show-pagenum">
+              </label>
+              <label class="toggle-row">
+                <span>右上にドキュメントタイトルを表示</span>
+                <input type="checkbox" id="chk-show-header">
+              </label>
+              <label class="toggle-row">
+                <span>章見出しに「↑ 目次」リンクを表示</span>
+                <input type="checkbox" id="chk-show-toc-back">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: COVER & TOC PAGE -->
+        <div class="tab-panel" data-panel="cover" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">表紙ページ</h3>
+            <div class="toggle-list mb-10">
+              <label class="toggle-row">
+                <span><strong>表紙ページを1ページ目に追加</strong></span>
+                <input type="checkbox" id="chk-cover-enabled">
+              </label>
+            </div>
+            <div id="cover-fields" class="field-stack">
+              <div class="field-inline">
+                <label for="sel-cover-style">表紙デザイン</label>
+                <select id="sel-cover-style">
+                  <option value="modern">モダン（左アクセント帯）</option>
+                  <option value="classic">クラシック（二重枠・冊子風）</option>
+                  <option value="cyber">サイバー（テック枠）</option>
+                  <option value="minimal">ミニマル（シンプル）</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="inp-cover-title">タイトル（空欄時はフロントマター/H1から自動）</label>
+                <input type="text" id="inp-cover-title" placeholder="自動抽出">
+              </div>
+              <div class="field">
+                <label for="inp-cover-subtitle">サブタイトル / 概要</label>
+                <input type="text" id="inp-cover-subtitle" placeholder="例: TRPG シナリオ資料">
+              </div>
+              <div class="field">
+                <label for="inp-cover-author">著者・サークル・システム名</label>
+                <input type="text" id="inp-cover-author" placeholder="例: 作者名">
+              </div>
+              <div class="field">
+                <label for="inp-cover-meta">日付・バージョン等（上部ラベル）</label>
+                <input type="text" id="inp-cover-meta" placeholder="例: 2026-11-23 / Ver 1.0">
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">クリック可能 目次ページ</h3>
+            <p class="panel-note">PDF内でクリックして各章へジャンプできるページ番号付き目次を生成します。</p>
+            <div class="toggle-list mb-10">
+              <label class="toggle-row">
+                <span><strong>目次ページを本文前に追加</strong></span>
+                <input type="checkbox" id="chk-toc-enabled">
+              </label>
+            </div>
+            <div id="toc-fields" class="field-stack">
+              <div class="field">
+                <label for="inp-toc-title">目次見出しタイトル</label>
+                <input type="text" id="inp-toc-title" value="目次">
+              </div>
+              <div class="field-inline">
+                <label for="sel-toc-depth">収録する見出し階層</label>
+                <select id="sel-toc-depth">
+                  <option value="2">H1 〜 H2 まで</option>
+                  <option value="3">H1 〜 H3 まで</option>
+                  <option value="6">すべて (H1 〜 H6)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-toc-columns">目次の段組</label>
+                <select id="sel-toc-columns">
+                  <option value="1">1段組（標準）</option>
+                  <option value="2">2段組（2カラム）</option>
+                  <option value="auto">自動（18件以上で2段組）</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: DESIGN (PRESETS, COLORS, TEXTURE) -->
+        <div class="tab-panel" data-panel="design" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">テーマプリセット</h3>
+            <div id="preset-grid" class="preset-grid"></div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">紙面カラー</h3>
+            <div class="mode-segment" role="group" aria-label="紙面モード選択">
+              <button type="button" class="seg-btn is-active" data-color-mode="light">☀ ライト紙面</button>
+              <button type="button" class="seg-btn" data-color-mode="dark">☾ ダーク紙面</button>
+            </div>
+            <div class="color-list">
+              <div class="color-row">
+                <label for="col-pageBg">用紙背景色</label>
+                <div class="color-control">
+                  <input type="color" id="col-pageBg" data-color-key="pageBg">
+                  <input type="text" class="hex-input" id="hex-pageBg" data-color-key="pageBg" maxlength="7">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-surfaceBg">枠・表ヘッダー背景</label>
+                <div class="color-control">
+                  <input type="color" id="col-surfaceBg" data-color-key="surfaceBg">
+                  <input type="text" class="hex-input" id="hex-surfaceBg" data-color-key="surfaceBg" maxlength="7">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-text">本文文字色</label>
+                <div class="color-control">
+                  <input type="color" id="col-text" data-color-key="text">
+                  <input type="text" class="hex-input" id="hex-text" data-color-key="text" maxlength="7">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-heading">見出し文字色</label>
+                <div class="color-control">
+                  <input type="color" id="col-heading" data-color-key="heading">
+                  <input type="text" class="hex-input" id="hex-heading" data-color-key="heading" maxlength="7">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-accent">アクセント色</label>
+                <div class="color-control">
+                  <input type="color" id="col-accent" data-color-key="accent">
+                  <input type="text" class="hex-input" id="hex-accent" data-color-key="accent" maxlength="7">
+                </div>
+              </div>
+              <div class="color-row">
+                <label for="col-link">リンク色</label>
+                <div class="color-control">
+                  <input type="color" id="col-link" data-color-key="link">
+                  <input type="text" class="hex-input" id="hex-link" data-color-key="link" maxlength="7">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">背景テクスチャ</h3>
+            <div class="texture-grid">
+              <button type="button" class="texture-card" data-texture="none">
+                <span class="tex-thumb tex-thumb-none"></span>
+                <span class="tex-label">無地</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="paper">
+                <span class="tex-thumb tex-thumb-paper"></span>
+                <span class="tex-label">紙テクスチャ風</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="cyberpunk">
+                <span class="tex-thumb tex-thumb-cyber"></span>
+                <span class="tex-label">サイバーパンク</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="dot-grid">
+                <span class="tex-thumb tex-thumb-dot"></span>
+                <span class="tex-label">ドット方眼</span>
+              </button>
+              <button type="button" class="texture-card" data-texture="lined">
+                <span class="tex-thumb tex-thumb-lined"></span>
+                <span class="tex-label">罫線ノート</span>
+              </button>
+            </div>
+            <div class="range-field mt-10">
+              <div class="range-head">
+                <label for="rng-tex-intensity">テクスチャの強さ</label>
+                <span id="val-tex-intensity" class="range-val">50%</span>
+              </div>
+              <input type="range" id="rng-tex-intensity" min="0" max="100" step="5" value="50">
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: MARKDOWN STYLES -->
+        <div class="tab-panel" data-panel="styles" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">タイポグラフィ</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label for="sel-body-font">本文フォント</label>
+                <select id="sel-body-font">
+                  <option value="gothic">ゴシック体</option>
+                  <option value="serif">明朝体</option>
+                  <option value="rounded">丸ゴシック</option>
+                  <option value="mono">等幅</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-heading-font">見出しフォント</label>
+                <select id="sel-heading-font">
+                  <option value="inherit">本文と同じ</option>
+                  <option value="gothic">ゴシック体</option>
+                  <option value="serif">明朝体</option>
+                  <option value="mono">等幅・テック系</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sel-font-size">文字サイズ</label>
+                <select id="sel-font-size">
+                  <option value="sm">小さめ (9.5pt)</option>
+                  <option value="md">標準 (10.5pt)</option>
+                  <option value="lg">大きめ (11.5pt)</option>
+                </select>
+              </div>
+            </div>
+            <div class="range-field">
+              <div class="range-head">
+                <label for="rng-line-height">行間</label>
+                <span id="val-line-height" class="range-val">1.75</span>
+              </div>
+              <input type="range" id="rng-line-height" min="1.45" max="2.1" step="0.05" value="1.75">
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">見出しデザイン</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-h1-style">H1 見出し</label>
+                <select id="sel-h1-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">アクセント下線</option>
+                  <option value="left-bar">左バー＋帯グラデ</option>
+                  <option value="box">ボックス囲み</option>
+                  <option value="double-line">上下二重線</option>
+                  <option value="center-ornament">中央装飾 (◆)</option>
+                  <option value="cyber">サイバー発光</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-h2-style">H2 見出し</label>
+                <select id="sel-h2-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">下線</option>
+                  <option value="left-bar">左アクセントバー</option>
+                  <option value="box">背景帯＋左バー</option>
+                  <option value="double-line">二重下線</option>
+                  <option value="cyber">サイバー (//)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-h3-style">H3 見出し</label>
+                <select id="sel-h3-style">
+                  <option value="simple">シンプル</option>
+                  <option value="underline">破線下線</option>
+                  <option value="left-bar">左細バー</option>
+                  <option value="dot">菱形マーカー (◆)</option>
+                  <option value="cyber">サイバー (&gt;)</option>
+                </select>
+              </div>
+              <div class="range-field mt-4">
+                <div class="range-head">
+                  <label for="rng-heading-space">見出しの上余白</label>
+                  <span id="val-heading-space" class="range-val">1.0x</span>
+                </div>
+                <input type="range" id="rng-heading-space" min="0.5" max="2.0" step="0.1" value="1.0">
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">Obsidian コールアウト</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-callout-style">枠スタイル</label>
+                <select id="sel-callout-style">
+                  <option value="obsidian">Obsidian 標準</option>
+                  <option value="left-border">左太線クラシック</option>
+                  <option value="outline">枠線アウトライン</option>
+                  <option value="filled">ヘッダー帯塗りつぶし</option>
+                </select>
+              </div>
+              <label class="toggle-row">
+                <span>折りたたみ (-) もPDFで自動展開</span>
+                <input type="checkbox" id="chk-expand-callouts">
+              </label>
+            </div>
+            <details class="callout-colors-accordion">
+              <summary>タイプ別の色カスタマイズ（13系統）</summary>
+              <div id="callout-colors-grid" class="callout-colors-grid"></div>
+              <button type="button" id="btn-reset-callout-colors" class="btn btn-ghost btn-xs mt-8">コールアウト色を標準に戻す</button>
+            </details>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">その他の記法</h3>
+            <div class="field-stack">
+              <div class="field-inline">
+                <label for="sel-blockquote-style">通常引用 (&gt;)</label>
+                <select id="sel-blockquote-style">
+                  <option value="border">左ボーダー</option>
+                  <option value="quote-icon">引用符アイコン</option>
+                  <option value="card">カード囲み</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-bold-style">太字 (**text**)</label>
+                <select id="sel-bold-style">
+                  <option value="normal">標準太字</option>
+                  <option value="accent">アクセント色</option>
+                  <option value="marker">蛍光マーカー下線</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-hr-style">水平線 (---)</label>
+                <select id="sel-hr-style">
+                  <option value="solid">実線</option>
+                  <option value="dashed">破線</option>
+                  <option value="ornament">オーナメント (✦)</option>
+                </select>
+              </div>
+              <div class="field-inline">
+                <label for="sel-table-style">テーブル</label>
+                <select id="sel-table-style">
+                  <option value="clean">シンプル罫線</option>
+                  <option value="striped">ストライプ行</option>
+                  <option value="bordered">フル枠線</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: PDF OUTLINE / BOOKMARKS & OUTPUT -->
+        <div class="tab-panel" data-panel="outline" role="tabpanel">
+          <div class="setting-block">
+            <h3 class="block-title">PDFしおり（アウトライン）埋め込み</h3>
+            <p class="panel-note">
+              ブラウザの「PDFに保存」ではPDF左パネルのしおりが自動生成されません。
+              保存したPDFを下にドロップすると、現在プレビュー中の見出しツリーと正確なページ番号を<strong>日本語しおりとして自動埋め込み</strong>して再保存できます。
+            </p>
+
+            <div id="pdf-drop-zone" class="pdf-drop-zone" role="button" tabindex="0" aria-label="しおりを埋め込むPDFを選択またはドロップ">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+              </svg>
+              <span class="pdf-drop-primary">保存した .pdf をここにドロップ</span>
+              <span class="pdf-drop-sub">またはクリックしてファイル選択 → しおり付きPDFを即保存</span>
+            </div>
+            <input type="file" id="pdf-file-input" accept=".pdf,application/pdf" hidden>
+
+            <div class="toggle-list mt-10">
+              <label class="toggle-row">
+                <span>表紙・目次もしおりの先頭に含める</span>
+                <input type="checkbox" id="chk-outline-cover-toc">
+              </label>
+              <label class="toggle-row">
+                <span>PDFを開いた時しおりパネルを自動表示</span>
+                <input type="checkbox" id="chk-outline-open-panel">
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">埋め込まれるしおり一覧（実測ページ）</h3>
+            <div id="outline-preview-list" class="outline-preview-list">
+              <p class="outline-empty">組版が完了すると見出しとページ番号が表示されます</p>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">Markdown / 出力オプション</h3>
+            <div class="toggle-list">
+              <label class="toggle-row">
+                <span>単一改行を改行（&lt;br&gt;）に反映</span>
+                <input type="checkbox" id="chk-breaks">
+              </label>
+              <label class="toggle-row">
+                <span>Obsidianコメント (%%...%%) を除外</span>
+                <input type="checkbox" id="chk-strip-comments">
+              </label>
+              <label class="toggle-row">
+                <span>先頭のYAMLフロントマターを除外</span>
+                <input type="checkbox" id="chk-strip-frontmatter">
+              </label>
+              <label class="toggle-row">
+                <span>Google Fonts を読み込む</span>
+                <input type="checkbox" id="chk-webfonts">
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-block">
+            <h3 class="block-title">設定のバックアップ・初期化</h3>
+            <div class="btn-row">
+              <button type="button" id="btn-export-config" class="btn btn-ghost btn-xs">JSON 書き出し</button>
+              <button type="button" id="btn-import-config" class="btn btn-ghost btn-xs">JSON 読み込み</button>
+              <input type="file" id="config-file-input" accept=".json" hidden>
+            </div>
+            <button type="button" id="btn-reset-all" class="btn btn-danger-ghost btn-xs mt-8 full-width">すべての設定をデフォルトに戻す</button>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ========== TOAST ========== -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/markdown-it.min.js"></script>
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="presets.js"></script>
+  <script src="parser.js"></script>
+  <script src="pdf-builder.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
