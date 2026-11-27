@@ -206,6 +206,67 @@
   }
 
   // ============================================================
+  // 4b. MARKDOWN-IT PLUGIN: SAFE <br> LINE BREAK (for tables & inline)
+  // ============================================================
+  function safeBrPlugin(md) {
+    md.inline.ruler.before('html_inline', 'safe_br', function (state, silent) {
+      const start = state.pos;
+      if (state.src.charCodeAt(start) !== 0x3C /* < */) return false;
+      const m = state.src.slice(start).match(/^<br\s*\/?>/i);
+      if (!m) return false;
+      if (silent) return true;
+
+      state.push('hardbreak', 'br', 0);
+      state.pos = start + m[0].length;
+      return true;
+    });
+  }
+
+  // ============================================================
+  // 4c. MARKDOWN-IT PLUGIN: PRESERVE FULL-WIDTH SPACE (U+3000) INDENT
+  // ============================================================
+  function preserveIdeographicIndentPlugin(md) {
+    md.block.ruler.at('paragraph', function paragraph(state, startLine, endLine) {
+      const terminatorRules = state.md.block.ruler.getRules('paragraph');
+      const oldParentType = state.parentType;
+      let nextLine = startLine + 1;
+      state.parentType = 'paragraph';
+
+      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+        if (state.sCount[nextLine] - state.blkIndent > 3) continue;
+        if (state.sCount[nextLine] < 0) continue;
+
+        let terminate = false;
+        for (let i = 0, l = terminatorRules.length; i < l; i++) {
+          if (terminatorRules[i](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) break;
+      }
+
+      const content = state
+        .getLines(startLine, nextLine, state.blkIndent, false)
+        .replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+
+      state.line = nextLine;
+
+      const tokenOpen = state.push('paragraph_open', 'p', 1);
+      tokenOpen.map = [startLine, state.line];
+
+      const tokenInline = state.push('inline', '', 0);
+      tokenInline.content = content;
+      tokenInline.map = [startLine, state.line];
+      tokenInline.children = [];
+
+      state.push('paragraph_close', 'p', -1);
+      state.parentType = oldParentType;
+      return true;
+    });
+  }
+
+  // ============================================================
   // 5. OBSIDIAN CALLOUTS PLUGIN (PDF-friendly auto-expand option)
   // ============================================================
   const CALLOUT_HEADER_RE = /^\[!([a-zA-Z0-9_-]+)\]([+-])?(?:[ \t]+([^\n]*))?(?:\n([\s\S]*))?$/;
@@ -521,6 +582,8 @@
 
     md.use(pageBreakPlugin);
     md.use(markPlugin);
+    md.use(safeBrPlugin);
+    md.use(preserveIdeographicIndentPlugin);
     obsidianCalloutPlugin(md, Boolean(opts.expandFoldedCallouts));
     md.use(taskListPlugin);
 

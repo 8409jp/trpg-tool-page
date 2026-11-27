@@ -235,6 +235,7 @@
     $('chk-breaks').checked = Boolean(config.output.breaks);
     $('chk-strip-comments').checked = Boolean(config.output.stripComments);
     $('chk-strip-frontmatter').checked = Boolean(config.output.stripFrontmatter);
+    $('chk-hover-preview').checked = config.output.hoverPreview !== false;
     $('chk-webfonts').checked = Boolean(config.output.includeWebFonts);
   }
 
@@ -658,6 +659,12 @@
     config.output.stripFrontmatter = e.target.checked;
     saveConfig();
     refreshPreviewContent();
+  });
+
+  $('chk-hover-preview').addEventListener('change', (e) => {
+    config.output.hoverPreview = e.target.checked;
+    saveConfig();
+    refreshPreviewStyles();
   });
 
   $('chk-webfonts').addEventListener('change', (e) => {

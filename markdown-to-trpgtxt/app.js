@@ -485,7 +485,7 @@ function convert(markdown, settings, isNested) {
     }
 
     // ── GitHub Alerts & Obsidian Callouts (> [!TYPE][+-]? optional label) ──
-    const alertMatch = line.match(/^\s*>\s*\[!([a-zA-Z0-9_-]+)\][+-]?(?:\s+(.+))?\s*$/i);
+    const alertMatch = line.match(/^[ \t]*>[ \t]*\[!([a-zA-Z0-9_-]+)\][+-]?(?:[ \t]+(.+))?[ \t]*$/i);
     if (alertMatch) {
       const alertType = alertMatch[1].toUpperCase();
       const rawLabel = (alertMatch[2] ?? '').trim();
@@ -493,8 +493,8 @@ function convert(markdown, settings, isNested) {
       const alertRule = findRule(rules, r => r.type === 'block' && r.blockType === 'alert');
       const contentLines = [];
       i++;
-      while (i < lines.length && /^\s*>\s*/.test(lines[i])) {
-        contentLines.push(lines[i].replace(/^\s*>\s*/, ''));
+      while (i < lines.length && /^[ \t]*>/.test(lines[i])) {
+        contentLines.push(lines[i].replace(/^[ \t]*>[ \t]?/, ''));
         i++;
       }
       if (alertRule) {
@@ -507,11 +507,11 @@ function convert(markdown, settings, isNested) {
     }
 
     // ── Blockquote ─────────────────────────────────────────
-    if (/^\s*>\s*/.test(line)) {
+    if (/^[ \t]*>/.test(line)) {
       const bqRule = findRule(rules, r => r.type === 'block' && r.blockType === 'blockquote');
       const contentLines = [];
-      while (i < lines.length && /^\s*>\s*/.test(lines[i])) {
-        contentLines.push(lines[i].replace(/^\s*>\s*/, ''));
+      while (i < lines.length && /^[ \t]*>/.test(lines[i])) {
+        contentLines.push(lines[i].replace(/^[ \t]*>[ \t]?/, ''));
         i++;
       }
       if (bqRule) {

@@ -191,6 +191,7 @@
         stripComments: true,
         stripFrontmatter: true,
         includeWebFonts: true,
+        hoverPreview: true,        // Obsidian-style heading link hover popup
       },
     };
   }
@@ -342,6 +343,7 @@ title: 霧の灯台と消えた航路 ― シナリオ資料
 
 濃霧に包まれた港町「白霧港」。
 定期船の欠航が続く中、探索者たちは一通の古びた手紙を受け取る。
+登場人物は [2-1. NPC一覧](#2-1-npc一覧) を、手記の内容は [[#2-2. 残された手記（引用）|残された手記]] をマウスオーバーで確認できます。
 
 ### 1-1. 事前チェックリスト
 

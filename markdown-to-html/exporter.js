@@ -189,6 +189,7 @@
       'data-hr-style': config.elements.hrStyle,
       'data-table-style': config.elements.tableStyle,
       'data-code-wrap': config.elements.codeWrap || 'wrap',
+      'data-hover-preview': config.output.hoverPreview === false ? 'false' : 'true',
       'data-texture': config.texture.type,
       'data-card-style': config.texture.cardStyle,
     };
@@ -1401,6 +1402,158 @@ html[data-table-style="bordered"] .markdown-body td {
   height: 18px;
 }
 
+/* Internal heading link subtle affordance */
+.markdown-body a.internal-heading-link {
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1.5px;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background-color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.markdown-body a.internal-heading-link:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  text-decoration-style: solid;
+}
+
+/* ============================================================
+   OBSIDIAN-STYLE HEADING HOVER POPOVER
+   ============================================================ */
+.heading-popover {
+  position: fixed;
+  z-index: 600;
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(390px, 56vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-bg);
+  color: var(--text);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24), 0 2px 8px rgba(0, 0, 0, 0.10);
+  opacity: 0;
+  transform: translateY(4px) scale(0.985);
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+  overflow: hidden;
+}
+
+html[data-theme="dark"] .heading-popover {
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.heading-popover.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.heading-popover-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+}
+
+.heading-popover-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+
+.heading-popover-level {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent);
+}
+
+.heading-popover-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heading-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.heading-popover-jump {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.10);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background-color 0.14s ease;
+}
+.heading-popover-jump:hover {
+  background: rgba(var(--accent-rgb), 0.20);
+}
+
+.heading-popover-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.heading-popover-close:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.heading-popover-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+  font-size: 0.9em;
+  line-height: 1.7;
+  scrollbar-width: thin;
+}
+
+.heading-popover-body > h1:first-child,
+.heading-popover-body > h2:first-child,
+.heading-popover-body > h3:first-child,
+.heading-popover-body > h4:first-child,
+.heading-popover-body > h5:first-child,
+.heading-popover-body > h6:first-child {
+  margin-top: 0 !important;
+}
+
+.heading-popover-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
 /* ============================================================
    PRINT STYLES
    ============================================================ */
@@ -1411,7 +1564,8 @@ html[data-table-style="bordered"] .markdown-body td {
   .toc-sidebar,
   .toc-backdrop,
   .back-to-top,
-  .code-copy-btn {
+  .code-copy-btn,
+  .heading-popover {
     display: none !important;
   }
   .doc-main {
@@ -1732,6 +1886,221 @@ html[data-table-style="bordered"] .markdown-body td {
     });
   }
 
+  // ── Obsidian-Style Heading Link Hover Popover ──────────────
+  var popoverEl = document.getElementById('heading-popover');
+  var popoverLevelEl = document.getElementById('heading-popover-level');
+  var popoverTitleEl = document.getElementById('heading-popover-title');
+  var popoverBodyEl = document.getElementById('heading-popover-body');
+  var popoverJumpBtn = document.getElementById('heading-popover-jump');
+  var popoverCloseBtn = document.getElementById('heading-popover-close');
+
+  var hoverShowTimer = null;
+  var hoverHideTimer = null;
+  var activePopoverAnchor = null;
+  var activePopoverTargetId = '';
+
+  function getHeadingLevel(el) {
+    if (!el || !el.tagName) return 0;
+    var m = el.tagName.match(/^H([1-6])$/);
+    return m ? parseInt(m[1], 10) : 0;
+  }
+
+  function findHeadingTargetElement(anchor) {
+    if (!anchor) return null;
+    var raw = anchor.getAttribute('data-heading-target') || (anchor.getAttribute('href') || '').slice(1);
+    if (!raw) return null;
+    var el = document.getElementById(raw);
+    if (!el) {
+      try { el = document.getElementById(decodeURIComponent(raw)); } catch (err) {}
+    }
+    if (!el || getHeadingLevel(el) === 0) return null;
+    return el;
+  }
+
+  function stripDuplicateIds(node) {
+    if (node.removeAttribute) node.removeAttribute('id');
+    if (node.querySelectorAll) {
+      node.querySelectorAll('[id]').forEach(function (child) {
+        child.removeAttribute('id');
+      });
+    }
+    return node;
+  }
+
+  function buildSectionPreviewFragment(headingEl) {
+    var frag = document.createDocumentFragment();
+    var targetLevel = getHeadingLevel(headingEl);
+    frag.appendChild(stripDuplicateIds(headingEl.cloneNode(true)));
+
+    var sib = headingEl.nextElementSibling;
+    var count = 0;
+    while (sib && count < 60) {
+      var lv = getHeadingLevel(sib);
+      if (lv > 0 && lv <= targetLevel) break;
+      frag.appendChild(stripDuplicateIds(sib.cloneNode(true)));
+      sib = sib.nextElementSibling;
+      count++;
+    }
+    return frag;
+  }
+
+  function positionPopover(anchor) {
+    if (!popoverEl || !anchor) return;
+    var rect = anchor.getBoundingClientRect();
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var margin = 12;
+    var gap = 8;
+
+    var popW = Math.min(460, vw - margin * 2);
+    popoverEl.style.width = popW + 'px';
+
+    // Measure natural height while invisible
+    var popH = Math.min(popoverEl.scrollHeight || 260, Math.min(390, Math.floor(vh * 0.56)));
+    var spaceBelow = vh - rect.bottom - margin;
+    var spaceAbove = rect.top - margin;
+
+    var top;
+    if (spaceBelow >= popH + gap || spaceBelow >= spaceAbove) {
+      top = Math.min(vh - margin - popH, rect.bottom + gap);
+    } else {
+      top = Math.max(margin, rect.top - gap - popH);
+    }
+    if (top < margin) top = margin;
+
+    var left = rect.left;
+    if (left + popW > vw - margin) left = vw - margin - popW;
+    if (left < margin) left = margin;
+
+    popoverEl.style.left = Math.round(left) + 'px';
+    popoverEl.style.top = Math.round(top) + 'px';
+  }
+
+  function hidePopoverNow() {
+    clearTimeout(hoverShowTimer);
+    clearTimeout(hoverHideTimer);
+    activePopoverAnchor = null;
+    activePopoverTargetId = '';
+    if (popoverEl) {
+      popoverEl.classList.remove('is-visible');
+      popoverEl.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function scheduleHidePopover() {
+    clearTimeout(hoverShowTimer);
+    clearTimeout(hoverHideTimer);
+    hoverHideTimer = setTimeout(hidePopoverNow, 240);
+  }
+
+  function showPopoverForAnchor(anchor) {
+    if (!popoverEl || htmlEl.getAttribute('data-hover-preview') === 'false') return;
+    var headingEl = findHeadingTargetElement(anchor);
+    if (!headingEl) return;
+
+    activePopoverAnchor = anchor;
+    activePopoverTargetId = headingEl.id;
+
+    var lv = getHeadingLevel(headingEl);
+    if (popoverLevelEl) popoverLevelEl.textContent = 'H' + lv;
+    if (popoverTitleEl) popoverTitleEl.textContent = (headingEl.textContent || '').trim();
+
+    if (popoverBodyEl) {
+      popoverBodyEl.innerHTML = '';
+      popoverBodyEl.appendChild(buildSectionPreviewFragment(headingEl));
+      popoverBodyEl.scrollTop = 0;
+    }
+
+    positionPopover(anchor);
+    popoverEl.classList.add('is-visible');
+    popoverEl.setAttribute('aria-hidden', 'false');
+    // Re-position once rendered in case height changed with wrapped content
+    requestAnimationFrame(function () {
+      if (activePopoverAnchor === anchor) positionPopover(anchor);
+    });
+  }
+
+  if (contentEl && popoverEl) {
+    contentEl.addEventListener('mouseover', function (e) {
+      if (htmlEl.getAttribute('data-hover-preview') === 'false') return;
+      var anchor = e.target.closest('a[href^="#"]');
+      if (!anchor) return;
+      if (anchor === activePopoverAnchor && popoverEl.classList.contains('is-visible')) {
+        clearTimeout(hoverHideTimer);
+        return;
+      }
+      if (!findHeadingTargetElement(anchor)) return;
+      clearTimeout(hoverHideTimer);
+      clearTimeout(hoverShowTimer);
+      hoverShowTimer = setTimeout(function () {
+        showPopoverForAnchor(anchor);
+      }, 210);
+    });
+
+    contentEl.addEventListener('mouseout', function (e) {
+      var anchor = e.target.closest('a[href^="#"]');
+      if (!anchor) return;
+      var toEl = e.relatedTarget;
+      if (toEl && (anchor.contains(toEl) || popoverEl.contains(toEl))) return;
+      scheduleHidePopover();
+    });
+
+    popoverEl.addEventListener('mouseenter', function () {
+      clearTimeout(hoverHideTimer);
+    });
+    popoverEl.addEventListener('mouseleave', function (e) {
+      var toEl = e.relatedTarget;
+      if (toEl && activePopoverAnchor && activePopoverAnchor.contains(toEl)) return;
+      scheduleHidePopover();
+    });
+
+    if (popoverJumpBtn) {
+      popoverJumpBtn.addEventListener('click', function () {
+        var tid = activePopoverTargetId;
+        hidePopoverNow();
+        if (tid) scrollToTargetId(tid);
+      });
+    }
+    if (popoverCloseBtn) {
+      popoverCloseBtn.addEventListener('click', hidePopoverNow);
+    }
+
+    // Handle clicks inside popover (in-page anchor jump & code copy)
+    popoverEl.addEventListener('click', function (e) {
+      var anchor = e.target.closest('a[href^="#"]');
+      if (anchor) {
+        var hashId = (anchor.getAttribute('href') || '').slice(1);
+        if (hashId) {
+          e.preventDefault();
+          hidePopoverNow();
+          scrollToTargetId(hashId);
+          return;
+        }
+      }
+      var copyBtn = e.target.closest('.code-copy-btn');
+      if (copyBtn) {
+        var block = copyBtn.closest('.code-block');
+        var codeEl = block && block.querySelector('pre code');
+        if (!codeEl) return;
+        var text = codeEl.textContent || '';
+        function copied() {
+          copyBtn.textContent = 'コピー済';
+          copyBtn.classList.add('is-copied');
+          setTimeout(function () { copyBtn.textContent = 'コピー'; copyBtn.classList.remove('is-copied'); }, 1400);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(copied).catch(function () {});
+        }
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && popoverEl.classList.contains('is-visible')) {
+        hidePopoverNow();
+      }
+    });
+  }
+
   // Expose helper for live preview host updates
   window.__md2htmlUpdateSpy = updateActiveToc;
 })();`;
@@ -1832,6 +2201,20 @@ ${parsed.tocHtml}
 ${parsed.html}
     </article>
   </main>
+
+  <div id="heading-popover" class="heading-popover" role="dialog" aria-label="見出しリンクプレビュー" aria-hidden="true">
+    <div class="heading-popover-header">
+      <div class="heading-popover-meta">
+        <span id="heading-popover-level" class="heading-popover-level">H2</span>
+        <span id="heading-popover-title" class="heading-popover-title"></span>
+      </div>
+      <div class="heading-popover-actions">
+        <button type="button" id="heading-popover-jump" class="heading-popover-jump" title="この見出しへ移動">移動 ↗</button>
+        <button type="button" id="heading-popover-close" class="heading-popover-close" aria-label="プレビューを閉じる">✕</button>
+      </div>
+    </div>
+    <div id="heading-popover-body" class="heading-popover-body markdown-body"></div>
+  </div>
 
   <button type="button" id="btn-back-to-top" class="back-to-top" title="先頭へ戻る" aria-label="先頭へ戻る">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>

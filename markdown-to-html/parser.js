@@ -192,6 +192,69 @@
   }
 
   // ============================================================
+  // 3b. MARKDOWN-IT PLUGIN: SAFE <br> LINE BREAK (for tables & inline)
+  // ============================================================
+  function safeBrPlugin(md) {
+    md.inline.ruler.before('html_inline', 'safe_br', function (state, silent) {
+      const start = state.pos;
+      if (state.src.charCodeAt(start) !== 0x3C /* < */) return false;
+      const m = state.src.slice(start).match(/^<br\s*\/?>/i);
+      if (!m) return false;
+      if (silent) return true;
+
+      state.push('hardbreak', 'br', 0);
+      state.pos = start + m[0].length;
+      return true;
+    });
+  }
+
+  // ============================================================
+  // 3c. MARKDOWN-IT PLUGIN: PRESERVE FULL-WIDTH SPACE (U+3000) INDENT
+  //     Replaces JS .trim() in built-in paragraph rule with ASCII-only trim
+  //     so Japanese full-width space indentation at paragraph starts is kept.
+  // ============================================================
+  function preserveIdeographicIndentPlugin(md) {
+    md.block.ruler.at('paragraph', function paragraph(state, startLine, endLine) {
+      const terminatorRules = state.md.block.ruler.getRules('paragraph');
+      const oldParentType = state.parentType;
+      let nextLine = startLine + 1;
+      state.parentType = 'paragraph';
+
+      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+        if (state.sCount[nextLine] - state.blkIndent > 3) continue;
+        if (state.sCount[nextLine] < 0) continue;
+
+        let terminate = false;
+        for (let i = 0, l = terminatorRules.length; i < l; i++) {
+          if (terminatorRules[i](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) break;
+      }
+
+      const content = state
+        .getLines(startLine, nextLine, state.blkIndent, false)
+        .replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+
+      state.line = nextLine;
+
+      const tokenOpen = state.push('paragraph_open', 'p', 1);
+      tokenOpen.map = [startLine, state.line];
+
+      const tokenInline = state.push('inline', '', 0);
+      tokenInline.content = content;
+      tokenInline.map = [startLine, state.line];
+      tokenInline.children = [];
+
+      state.push('paragraph_close', 'p', -1);
+      state.parentType = oldParentType;
+      return true;
+    });
+  }
+
+  // ============================================================
   // 4. MARKDOWN-IT PLUGIN: OBSIDIAN CALLOUTS
   //    Supports all 13 types + aliases + custom fallback,
   //    custom titles with inline markdown, + / - folding,
@@ -437,6 +500,67 @@
   }
 
   // ============================================================
+  // 5b. MARKDOWN-IT PLUGIN: OBSIDIAN WIKILINK & SPACE-SAFE HEADING LINKS
+  //     Supports [[#Heading]], [[#Heading|Alias]], [[#Parent#Child]],
+  //     and [Label](#Heading with spaces)
+  // ============================================================
+  function headingLinkSyntaxPlugin(md) {
+    // 1. Obsidian WikiLink for headings: [[#Heading]] / [[#Heading|Alias]]
+    md.inline.ruler.before('link', 'obsidian_wikilink', function (state, silent) {
+      const start = state.pos;
+      if (state.src.charCodeAt(start) !== 0x5B /* [ */ || state.src.charCodeAt(start + 1) !== 0x5B) {
+        return false;
+      }
+      const rest = state.src.slice(start);
+      const m = rest.match(/^\[\[#([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/);
+      if (!m) return false;
+      if (silent) return true;
+
+      const rawPath = m[1].trim();
+      const segments = rawPath.split('#').map((s) => s.trim()).filter(Boolean);
+      const targetKey = segments.length > 0 ? segments[segments.length - 1] : rawPath;
+      const displayText = (m[2] || '').trim() || targetKey;
+
+      const openTok = state.push('link_open', 'a', 1);
+      openTok.attrSet('href', '#' + targetKey);
+      openTok.attrJoin('class', 'obsidian-wikilink');
+      openTok.meta = { rawHashTarget: targetKey };
+
+      const textTok = state.push('text', '', 0);
+      textTok.content = displayText;
+
+      state.push('link_close', 'a', -1);
+      state.pos = start + m[0].length;
+      return true;
+    });
+
+    // 2. Fallback for standard-style [Label](#Heading with spaces) that CommonMark skips
+    md.inline.ruler.after('link', 'hash_link_with_spaces', function (state, silent) {
+      const start = state.pos;
+      if (state.src.charCodeAt(start) !== 0x5B /* [ */) return false;
+      const rest = state.src.slice(start);
+      const m = rest.match(/^\[([^\]\n]+)\]\(#([^)\n]+)\)/);
+      if (!m) return false;
+      if (silent) return true;
+
+      const label = m[1];
+      const rawHash = m[2].trim();
+      if (!rawHash) return false;
+
+      const openTok = state.push('link_open', 'a', 1);
+      openTok.attrSet('href', '#' + rawHash);
+      openTok.meta = { rawHashTarget: rawHash };
+
+      const textTok = state.push('text', '', 0);
+      textTok.content = label;
+
+      state.push('link_close', 'a', -1);
+      state.pos = start + m[0].length;
+      return true;
+    });
+  }
+
+  // ============================================================
   // 6. HEADING ID & TOC TREE EXTRACTOR
   // ============================================================
   function slugifyHeading(text) {
@@ -541,6 +665,9 @@
     });
 
     md.use(markPlugin);
+    md.use(safeBrPlugin);
+    md.use(preserveIdeographicIndentPlugin);
+    md.use(headingLinkSyntaxPlugin);
     md.use(obsidianCalloutPlugin);
     md.use(taskListPlugin);
 
@@ -562,6 +689,51 @@
           }
           tokens[i].attrSet('id', id);
           headings.push({ id, level, text });
+        }
+      }
+    });
+
+    // Resolve internal heading links (#id, #Heading Text, [[#Heading]]) to exact heading IDs
+    function resolveHeadingMatch(rawHash) {
+      if (!rawHash || headings.length === 0) return null;
+      let decoded = rawHash;
+      try { decoded = decodeURIComponent(rawHash); } catch (e) {}
+      const trimmed = decoded.trim();
+      const lower = trimmed.toLowerCase();
+      const slug = slugifyHeading(trimmed);
+
+      // 1. Exact ID match
+      for (let i = 0; i < headings.length; i++) {
+        if (headings[i].id === trimmed || headings[i].id === lower) return headings[i];
+      }
+      // 2. Exact heading text match (case-insensitive)
+      for (let i = 0; i < headings.length; i++) {
+        if (headings[i].text.trim().toLowerCase() === lower) return headings[i];
+      }
+      // 3. Slug match
+      for (let i = 0; i < headings.length; i++) {
+        if (headings[i].id === slug || slugifyHeading(headings[i].text) === slug) return headings[i];
+      }
+      return null;
+    }
+
+    md.core.ruler.after('heading_toc', 'resolve_heading_links', function (state) {
+      const tokens = state.tokens;
+      for (let i = 0; i < tokens.length; i++) {
+        const tok = tokens[i];
+        if (tok.type !== 'inline' || !tok.children) continue;
+        for (let j = 0; j < tok.children.length; j++) {
+          const child = tok.children[j];
+          if (child.type !== 'link_open') continue;
+          const href = child.attrGet('href') || '';
+          if (!href.startsWith('#') || href.length <= 1) continue;
+          const rawTarget = (child.meta && child.meta.rawHashTarget) || href.slice(1);
+          const matched = resolveHeadingMatch(rawTarget);
+          if (matched) {
+            child.attrSet('href', '#' + matched.id);
+            child.attrSet('data-heading-target', matched.id);
+            child.attrJoin('class', 'internal-heading-link');
+          }
         }
       }
     });
